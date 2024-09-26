@@ -16,7 +16,9 @@
           </div>
         </template>
 
+
         <!-- 自定义文件列表 -->
+
         <template #file="slotProps">
           <div 
             class="custom-file-item" 
@@ -30,10 +32,12 @@
             <el-icon-close />
           </el-icon>
         </template>
+
       </el-upload>
     </div>
 
     <!-- 右侧图片查看区域 -->
+
     <div class="image-preview-container">
       <div class="image-preview-box">
         <!-- 处理前 -->
@@ -43,12 +47,15 @@
           <p v-else>选择图片进行预览</p>
         </div>
 
+
         <!-- 处理后 -->
+
         <div class="image-preview">
           <div class="title">处理后</div>
           <img v-if="processedImage" alt="预览" :src="processedImage" class="full-image"  @click="openProcessedImageDialog"/>
           <p v-else>选择图片进行预览</p>
         </div>
+
       </div>
 
       <div class="function">
@@ -57,6 +64,7 @@
         <el-button class="btn" type="success" @click="handleRestoreOriginalImage">clear</el-button>
         <el-button class="btn" type="danger" @click="downloadImage">下载</el-button>
       </div>
+
     </div>
 
     <!-- 点击放大图片弹窗 -->
@@ -68,9 +76,11 @@
     </el-dialog>
   </div>
 </template>
+
 <script setup>
 import { ref, watch } from 'vue';
 import { uploadImage, enlargeImage, equalImage,restoreOriginalImage} from './apis/index'; // 引入封装的API
+
 
 const fileList = ref([]); // 文件列表
 const selectedImage = ref(null); // 当前选中的图片
@@ -78,6 +88,7 @@ const imageDialogVisible = ref(false); // 控制图片弹窗的显示
 const processedImageDialogVisible = ref(false);
 const processedImage = ref(null); // 处理后的图片 URL
 const originalImage = ref(null);
+const downloadIamge = ref(null);
 // 处理文件上传逻辑
 const handleUpload = async (rawFile) => {
   try {
@@ -96,6 +107,7 @@ const handleUpload = async (rawFile) => {
 
 // 点击图片进行预览
 const handlePreview = (file) => {
+  console.log(file)
   selectedImage.value = file.url || null;
   originalImage.value = file.url || null
 };
@@ -146,9 +158,10 @@ const enlargeImageHandler = async () => {
     
     // 创建一个 URL 以显示增强后的图片
     const processedImageUrl = URL.createObjectURL(blob);
-
+    
     // 将增强后的图片显示在右侧
     processedImage.value = processedImageUrl;
+    downloadIamge.value =processedImage.value
   } catch (error) {
     console.error('增强图片失败', error);
   }
@@ -171,14 +184,12 @@ const equalImageHandler = async () => {
 
     // 将增强后的图片显示在右侧
     processedImage.value = processedImageUrl;
+    downloadIamge.value =processedImage.value
   } catch (error) {
     console.error('增强图片失败', error);
   }
 };
-// const restoreOriginalImage = () => {
-//   processedImage.value = originalImage.value; // 将处理后的图片设置为原图
-//   console.log("恢复为原图:", originalImage.value);
-// };
+
 
 // 恢复原图
 const handleRestoreOriginalImage = async () => {
@@ -190,12 +201,18 @@ const handleRestoreOriginalImage = async () => {
   const filename = originalImage.value.split('/').pop();
 
   try {
-    const url = await restoreOriginalImage(filename); // 调用 API 函数
-    processedImage.value = url; // 将处理后的图片设置为原图
+    const blob = await restoreOriginalImage(filename); // 调用 API 函数
+    if (!(blob instanceof Blob)) {
+      throw new Error('返回的数据不是 Blob 对象');
+    }
+    
+    processedImage.value = URL.createObjectURL(blob); // 创建 Blob URL
+    downloadIamge.value = processedImage.value; // 设置下载链接为 Blob URL
   } catch (error) {
     console.error('恢复原图失败', error);
   }
 };
+
 
 // 下载图片
 const downloadImage = () => {
@@ -206,7 +223,7 @@ const downloadImage = () => {
 
   // 创建一个临时的 a 标签用于下载
   const link = document.createElement('a');
-  link.href = processedImage.value; // 设置 href 为处理后的图片 URL
+  link.href = downloadIamge.value; // 设置 href 为处理后的图片 URL
   link.download = 'processed-image.jpg'; // 设置下载的文件名
   link.click(); // 模拟点击触发下载
 };
@@ -228,6 +245,7 @@ const downloadImage = () => {
   justify-content: space-between;
 }
 
+
 .upload-section {
   width: 350px;
   max-height: 90vh;
@@ -240,7 +258,7 @@ const downloadImage = () => {
   cursor: pointer;
   display: flex;
   align-items: center;
-  
+
 }
 
 .thumbnail {
