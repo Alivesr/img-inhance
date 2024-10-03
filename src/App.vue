@@ -61,25 +61,34 @@
       <div class="function">
         <el-button class="btn" type="success" @click="enlargeImageHandler">gamma</el-button>
         <el-button class="btn" type="success" @click="equalImageHandler">equal</el-button>
-        <el-button class="btn" type="success" @click="handleRestoreOriginalImage">clear</el-button>
+        <el-button class="btn" type="success" @click="processImages">去雾</el-button>
+        <el-button class="btn" type="success" @click="previewbtn">预览</el-button>
+        <el-button class="btn" type="success" @click="clearUploads">清空</el-button>
+
+        <el-button class="btn" type="success" @click="handleRestoreOriginalImage">恢复</el-button>
         <el-button class="btn" type="danger" @click="downloadImage">下载</el-button>
       </div>
 
     </div>
 
     <!-- 点击放大图片弹窗 -->
-    <el-dialog v-model="imageDialogVisible" width="60%" :append-to-body="true">
-      <img :src="selectedImage" alt="放大图片" class="enlarged-image" />
-    </el-dialog>
-    <el-dialog v-model="processedImageDialogVisible" width="60%" :append-to-body="true">
-      <img :src="processedImage" alt="放大图片" class="enlarged-image" />
-    </el-dialog>
+    <div>
+      <el-dialog v-model="imageDialogVisible" width="60%" :append-to-body="true">
+        <img :src="selectedImage" alt="放大图片" class="enlarged-image" />
+      </el-dialog>
+    </div>
+    <div>
+      <el-dialog custom-class="details_class" v-model="processedImageDialogVisible" width="60%" :append-to-body="true">
+        <img :src="processedImage" alt="放大图片" class="enlarged-image" />
+      </el-dialog>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { uploadImage, enlargeImage, equalImage,restoreOriginalImage} from './apis/index'; // 引入封装的API
+import axios from 'axios';
 
 
 const fileList = ref([]); // 文件列表
@@ -89,7 +98,18 @@ const processedImageDialogVisible = ref(false);
 const processedImage = ref(null); // 处理后的图片 URL
 const originalImage = ref(null);
 const downloadIamge = ref(null);
+import { ElMessage } from 'element-plus'
 // 处理文件上传逻辑
+
+const clearUploads = async () => {
+  try {
+    await axios.delete('http://localhost:5000/clear_uploads');
+    console.log('上传路径中的图片已清空');
+  } catch (error) {
+    console.error('清空上传路径失败', error);
+  }
+};
+
 const handleUpload = async (rawFile) => {
   try {
     const response = await uploadImage(rawFile); 
@@ -212,7 +232,52 @@ const handleRestoreOriginalImage = async () => {
     console.error('恢复原图失败', error);
   }
 };
+const processImages = async () => {
+  try {
+    const response = await axios.post('http://localhost:5000/process_images');
+    const downloadLinks = response.data.download_links;
 
+    
+     ElMessage({
+      message: '所有图片处理完成！',
+      type: 'success',
+    });
+
+    console.log('处理完成:', response.data.message);
+    console.log('下载链接:', downloadLinks);
+  } catch (error) {
+    console.error('处理图片失败:', error.response.data.error);
+  }
+};
+const previewbtn = async () => {
+  if (!selectedImage.value) {
+    console.error('没有可预览的图片');
+    return;
+  }
+
+  
+  const filename = selectedImage.value.split('/').pop(); // 获取文件名
+  const baseName = filename.split('.').slice(0, -1).join('.'); // 获取不带后缀的文件名
+  const extension = filename.split('.').pop(); // 获取后缀
+  const newFilename = `${baseName}_processed.${extension}`; // 在后缀前添加内容 // 获取当前选中图片的文件名
+
+   try {
+    // 调用后端接口获取处理后的图片
+    const response = await axios.get(`http://localhost:5000/result/${newFilename}`, {
+      responseType: 'arraybuffer', // 指定返回数据类型为 ArrayBuffer
+    });
+
+    if (response.status === 200) {
+      const blob = new Blob([response.data], { type: 'image/png' }); // 创建 Blob 对象
+      processedImage.value = URL.createObjectURL(blob); 
+      downloadIamge.value =processedImage.value// 创建 URL 以显示图像
+    } else {
+      console.error('无法获取处理后的图片:', response.statusText);
+    }
+  } catch (error) {
+    console.error('获取处理后的图片失败', error);
+  }
+};
 
 // 下载图片
 const downloadImage = () => {
@@ -237,7 +302,7 @@ const downloadImage = () => {
 
 
 
-<style scoped>
+<style>
 .container {
   height: 95vh;
   width: 95vw;
@@ -260,6 +325,8 @@ const downloadImage = () => {
   align-items: center;
 
 }
+/* 预览弹窗 */
+
 
 .thumbnail {
   width: 110px;
@@ -336,12 +403,13 @@ const downloadImage = () => {
   max-height: 100%;
   object-fit: contain;
 }
-.el-dialog__body {
+.details_class .el-dialog__body{
   display: flex;
   justify-content: center;
 }
 
 .enlarged-image {
+  margin: 0 auto;
   max-width: 100%;
   height: auto;
   border-radius: 5px;
