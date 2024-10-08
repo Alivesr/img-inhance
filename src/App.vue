@@ -66,6 +66,7 @@
         <el-button class="btn" type="success" @click="clearUploads">清空</el-button>
 
         <el-button class="btn" type="success" @click="handleRestoreOriginalImage">恢复</el-button>
+        <el-button class="btn" type="danger" @click="downloadAllResults">打包下载</el-button>
         <el-button class="btn" type="danger" @click="downloadImage">下载</el-button>
       </div>
 
@@ -73,12 +74,12 @@
 
     <!-- 点击放大图片弹窗 -->
     <div>
-      <el-dialog v-model="imageDialogVisible" width="60%" :append-to-body="true">
+      <el-dialog :style="{ display: 'flex', justifyContent: 'center',}" v-model="imageDialogVisible" width="60%" :append-to-body="true">
         <img :src="selectedImage" alt="放大图片" class="enlarged-image" />
       </el-dialog>
     </div>
     <div>
-      <el-dialog custom-class="details_class" v-model="processedImageDialogVisible" width="60%" :append-to-body="true">
+      <el-dialog   :style="{ display: 'flex', justifyContent: 'center',}" v-model="processedImageDialogVisible" width="60%" :append-to-body="true">
         <img :src="processedImage" alt="放大图片" class="enlarged-image" />
       </el-dialog>
     </div>
@@ -105,6 +106,7 @@ const clearUploads = async () => {
   try {
     await axios.delete('http://localhost:5000/clear_uploads');
     console.log('上传路径中的图片已清空');
+    fileList.value = [];
   } catch (error) {
     console.error('清空上传路径失败', error);
   }
@@ -236,8 +238,6 @@ const processImages = async () => {
   try {
     const response = await axios.post('http://localhost:5000/process_images');
     const downloadLinks = response.data.download_links;
-
-    
      ElMessage({
       message: '所有图片处理完成！',
       type: 'success',
@@ -255,7 +255,6 @@ const previewbtn = async () => {
     return;
   }
 
-  
   const filename = selectedImage.value.split('/').pop(); // 获取文件名
   const baseName = filename.split('.').slice(0, -1).join('.'); // 获取不带后缀的文件名
   const extension = filename.split('.').pop(); // 获取后缀
@@ -269,7 +268,7 @@ const previewbtn = async () => {
 
     if (response.status === 200) {
       const blob = new Blob([response.data], { type: 'image/png' }); // 创建 Blob 对象
-      processedImage.value = URL.createObjectURL(blob); 
+      processedImage.value = URL.createObjectURL(blob)
       downloadIamge.value =processedImage.value// 创建 URL 以显示图像
     } else {
       console.error('无法获取处理后的图片:', response.statusText);
@@ -292,6 +291,28 @@ const downloadImage = () => {
   link.download = 'processed-image.jpg'; // 设置下载的文件名
   link.click(); // 模拟点击触发下载
 };
+
+const downloadAllResults = async () => {
+  try {
+    const response = await axios({
+      url: 'http://localhost:5000/download_all_results',  // 后端 API 路径
+      method: 'GET',
+      responseType: 'blob',  // 确保响应的数据是 Blob 类型（文件）
+    });
+
+    // 创建一个 Blob URL 并触发下载
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'results.zip'); // 指定下载的文件名
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link); // 移除临时生成的链接
+
+  } catch (error) {
+    console.error('下载失败:', error);
+  }
+}
 </script>
 
 
@@ -403,13 +424,10 @@ const downloadImage = () => {
   max-height: 100%;
   object-fit: contain;
 }
-.details_class .el-dialog__body{
-  display: flex;
-  justify-content: center;
-}
+
 
 .enlarged-image {
-  margin: 0 auto;
+  
   max-width: 100%;
   height: auto;
   border-radius: 5px;
