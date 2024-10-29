@@ -1,5 +1,6 @@
 <template>
   <div class="container">
+  
     <!-- 左侧上传和图片列表 -->
     <div class="upload-section">
       <el-upload
@@ -49,7 +50,7 @@
 
 
         <!-- 处理后 -->
-
+       
         <div class="image-preview">
           <div class="title">处理后</div>
           <img v-if="processedImage" alt="预览" :src="processedImage" class="full-image"  @click="openProcessedImageDialog"/>
@@ -62,12 +63,10 @@
         <el-button class="btn" type="success" @click="enlargeImageHandler">gamma</el-button>
         <el-button class="btn" type="success" @click="equalImageHandler">equal</el-button>
         <el-button class="btn" type="success" @click="processImages">去雾</el-button>
-        <el-button class="btn" type="success" @click="previewbtn">预览</el-button>
         <el-button class="btn" type="success" @click="clearUploads">清空</el-button>
-
         <el-button class="btn" type="success" @click="handleRestoreOriginalImage">恢复</el-button>
-        <el-button class="btn" type="danger" @click="downloadAllResults">打包下载</el-button>
-        <el-button class="btn" type="danger" @click="downloadImage">下载</el-button>
+        <!-- <el-button class="btn" type="danger" @click="downloadAllResults">打包下载</el-button> -->
+        <el-button class="btn" type="danger" @click="downloadImageHandler">下载</el-button>
       </div>
 
     </div>
@@ -88,7 +87,7 @@
 
 <script setup>
 import { onMounted, ref, watch } from 'vue';
-import { uploadImage, enlargeImage, equalImage,restoreOriginalImage} from './apis/index'; // 引入封装的API
+import { uploadImage, enlargeImage, equalImage,restoreOriginalImage,process_imagesAPI} from './apis/index'; // 引入封装的API
 import axios from 'axios';
 
 
@@ -98,15 +97,18 @@ const imageDialogVisible = ref(false); // 控制图片弹窗的显示
 const processedImageDialogVisible = ref(false);
 const processedImage = ref(null); // 处理后的图片 URL
 const originalImage = ref(null);
-const downloadIamge = ref(null);
-import { ElMessage } from 'element-plus'
+const downloadImage = ref(null);
+import { ElNotification } from 'element-plus'
 // 处理文件上传逻辑
 
 const clearUploads = async () => {
   try {
     await axios.delete('http://localhost:5000/clear_uploads');
+    alert('路径中的图片已清空');
     console.log('上传路径中的图片已清空');
     fileList.value = [];
+    processedImage.value = null;
+
   } catch (error) {
     console.error('清空上传路径失败', error);
   }
@@ -183,9 +185,60 @@ const enlargeImageHandler = async () => {
     
     // 将增强后的图片显示在右侧
     processedImage.value = processedImageUrl;
-    downloadIamge.value =processedImage.value
+    downloadImage.value =processedImage.value
   } catch (error) {
     console.error('增强图片失败', error);
+  }
+};
+// 图片去雾功能
+const processImages =async()=>{
+  
+
+  const filename = selectedImage.value.split('/').pop();
+
+  const loading = ElNotification({
+    title: '图片处理中',
+    message: '请稍后...',
+    type: 'info',
+    duration: 0, // 持续显示，直到手动关闭
+  });
+ try {
+    const response = await process_imagesAPI(filename)
+    const blob = response.data;
+    // 从 response 中生成 Blob URL
+    const processedImageUrl = URL.createObjectURL(blob);
+    ElMessage.success('图片处理完成！');
+    // 将增强后的图片显示在右侧
+    processedImage.value = processedImageUrl;
+    downloadImage.value =processedImage.value
+  } catch (error) {
+    console.error('处理图片失败', error);
+  }finally {
+    loading.close(); // 关闭加载提示
+  }
+} 
+
+// 恢复原图
+const handleRestoreOriginalImage = async () => {
+  if (!originalImage.value) {
+    console.error('没有可恢复的原图');
+    return;
+  }
+
+  const filename = originalImage.value.split('/').pop();
+
+  try {
+    const response = await restoreOriginalImage(filename);
+    const blob = response.data;
+     // 调用 API 函数
+    if (!(blob instanceof Blob)) {
+      throw new Error('返回的数据不是 Blob 对象');
+    }
+    
+    processedImage.value = URL.createObjectURL(blob); // 创建 Blob URL
+    downloadImage.value = processedImage.value; // 设置下载链接为 Blob URL
+  } catch (error) {
+    console.error('恢复原图失败', error);
   }
 };
 
@@ -206,80 +259,15 @@ const equalImageHandler = async () => {
 
     // 将增强后的图片显示在右侧
     processedImage.value = processedImageUrl;
-    downloadIamge.value =processedImage.value
+    downloadImage.value =processedImage.value
   } catch (error) {
     console.error('增强图片失败', error);
   }
 };
 
 
-// 恢复原图
-const handleRestoreOriginalImage = async () => {
-  if (!originalImage.value) {
-    console.error('没有可恢复的原图');
-    return;
-  }
-
-  const filename = originalImage.value.split('/').pop();
-
-  try {
-    const blob = await restoreOriginalImage(filename); // 调用 API 函数
-    if (!(blob instanceof Blob)) {
-      throw new Error('返回的数据不是 Blob 对象');
-    }
-    
-    processedImage.value = URL.createObjectURL(blob); // 创建 Blob URL
-    downloadIamge.value = processedImage.value; // 设置下载链接为 Blob URL
-  } catch (error) {
-    console.error('恢复原图失败', error);
-  }
-};
-const processImages = async () => {
-  try {
-    const response = await axios.post('http://localhost:5000/process_images');
-    const downloadLinks = response.data.download_links;
-     ElMessage({
-      message: '所有图片处理完成！',
-      type: 'success',
-    });
-
-    console.log('处理完成:', response.data.message);
-    console.log('下载链接:', downloadLinks);
-  } catch (error) {
-    console.error('处理图片失败:', error.response.data.error);
-  }
-};
-const previewbtn = async () => {
-  if (!selectedImage.value) {
-    console.error('没有可预览的图片');
-    return;
-  }
-
-  const filename = selectedImage.value.split('/').pop(); // 获取文件名
-  const baseName = filename.split('.').slice(0, -1).join('.'); // 获取不带后缀的文件名
-  const extension = filename.split('.').pop(); // 获取后缀
-  const newFilename = `${baseName}_processed.${extension}`; // 在后缀前添加内容 // 获取当前选中图片的文件名
-
-   try {
-    // 调用后端接口获取处理后的图片
-    const response = await axios.get(`http://localhost:5000/result/${newFilename}`, {
-      responseType: 'arraybuffer', // 指定返回数据类型为 ArrayBuffer
-    });
-
-    if (response.status === 200) {
-      const blob = new Blob([response.data], { type: 'image/png' }); // 创建 Blob 对象
-      processedImage.value = URL.createObjectURL(blob)
-      downloadIamge.value =processedImage.value// 创建 URL 以显示图像
-    } else {
-      console.error('无法获取处理后的图片:', response.statusText);
-    }
-  } catch (error) {
-    console.error('获取处理后的图片失败', error);
-  }
-};
-
 // 下载图片
-const downloadImage = () => {
+const downloadImageHandler = () => {
   if (!processedImage.value) {
     console.error('没有可下载的处理后图片');
     return;
@@ -287,7 +275,7 @@ const downloadImage = () => {
 
   // 创建一个临时的 a 标签用于下载
   const link = document.createElement('a');
-  link.href = downloadIamge.value; // 设置 href 为处理后的图片 URL
+  link.href = downloadImage.value; // 设置 href 为处理后的图片 URL
   link.download = 'processed-image.jpg'; // 设置下载的文件名
   link.click(); // 模拟点击触发下载
 };
@@ -314,13 +302,6 @@ const downloadAllResults = async () => {
   }
 }
 </script>
-
-
-
-
-
-
-
 
 
 <style>
